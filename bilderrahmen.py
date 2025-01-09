@@ -28,7 +28,7 @@ known_commands = [
     "play"
 ]
 
-# Unterdrückt ALSA-Fehlerausgaben (Raspberry-spezifisch)
+# Unterdrückt ALSA-Fehlerausgaben (Raspberry-spezifisch) - sehr viele Log-Meldungen, welche nicht relevant sind
 asound = ctypes.CDLL('libasound.so')
 asound.snd_lib_error_set_handler(None)
 
@@ -73,7 +73,7 @@ MENU_HEIGHT = 80
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 480
 
-# Wir haben 8 Buttons. Definieren sie in fester Reihenfolge:
+# 8 Buttons. Definiert in fester Reihenfolge:
 buttons_in_order = [
     "langsamer",
     "zurück",
@@ -117,7 +117,7 @@ def load_icon_with_white_bg(icon_path, size=(64, 64)):
     icon_scaled = cv2.resize(icon_bgr, size, interpolation=cv2.INTER_AREA)
     return icon_scaled
 
-# Deine Icons (anpassen falls andere Dateinamen)
+# Icons
 icon_langsamer  = load_icon_with_white_bg(os.path.join(icons_folder, "langsamer.png"), (ICON_SIZE, ICON_SIZE))
 icon_schneller  = load_icon_with_white_bg(os.path.join(icons_folder, "schneller.png"), (ICON_SIZE, ICON_SIZE))
 icon_left       = load_icon_with_white_bg(os.path.join(icons_folder, "linker-pfeil.png"), (ICON_SIZE, ICON_SIZE))
@@ -130,6 +130,7 @@ icon_modus_all  = load_icon_with_white_bg(os.path.join(icons_folder, "all.png"),
 icon_modus_fav  = load_icon_with_white_bg(os.path.join(icons_folder, "favorite_only.png"), (ICON_SIZE, ICON_SIZE))
 icon_info       = load_icon_with_white_bg(os.path.join(icons_folder, "info.png"), (ICON_SIZE, ICON_SIZE))
 
+# lädt alle Bilder aus dem Image-Pfad
 def load_images():
     global images, current_image
     if not os.path.exists(image_folder):
@@ -147,6 +148,7 @@ def load_images():
         else:
             print(f"Keine Bilder im Ordner {image_folder} gefunden.")
 
+# Lädt alle Bilder, welche im JSON-File als Favorit abgespeichert sind
 def load_favorites():
     global favorites
     if os.path.exists(favorites_file):
@@ -158,6 +160,7 @@ def load_favorites():
     else:
         favorites = []
 
+# Speichert ein Bild als Favorit ab -> Eintrag in JSON-File
 def save_favorite(image):
     with lock:
         if image not in favorites:
@@ -165,6 +168,7 @@ def save_favorite(image):
             with open(favorites_file, "w") as f:
                 json.dump(favorites, f)
 
+# Löscht ein Bild aus Favoriten -> Eintrag löschen in JSON-File
 def remove_favorite(image):
     with lock:
         if image in favorites:
@@ -172,6 +176,7 @@ def remove_favorite(image):
             with open(favorites_file, "w") as f:
                 json.dump(favorites, f)
 
+# Bild auf Display anpassen
 def resize_and_center_image(image, screen_width, screen_height):
     background = np.zeros((screen_height, screen_width, 3), dtype=np.uint8)
     image_height, image_width = image.shape[:2]
@@ -190,6 +195,7 @@ def resize_and_center_image(image, screen_width, screen_height):
     background[y_offset:y_offset + new_height, x_offset:x_offset + new_width] = resized_image
     return background
 
+# Verbessert Erkennung mittels bekannter Befehle. Befehl erkannt bei > 70% übereinstimmung
 def find_best_match(command):
     command = command.strip().lower()
     result = process.extractOne(command, known_commands, scorer=fuzz.token_sort_ratio)
@@ -197,6 +203,7 @@ def find_best_match(command):
         return result[0]
     return None
 
+# Vermeidung von Umlauten -> Können nicht dargestellt werden.
 def ascii_fallback(text):
     text = text.replace("ä", "ae").replace("Ä", "Ae")
     text = text.replace("ö", "oe").replace("Ö", "Oe")
@@ -204,6 +211,7 @@ def ascii_fallback(text):
     text = text.replace("ß", "ss")
     return text
 
+# Listener Funktion: Wartet auf das Erkennungswort "Hey Berry"
 def listen_for_command():
     recognizer = sr.Recognizer()
     mic = sr.Microphone(device_index=2)  # Mikrofon-Index auf 2 fest kodiert
@@ -227,6 +235,7 @@ def listen_for_command():
         print(f"Fehler im Listener: {e}")
     return False
 
+# Listener Funktion: Wartet auf einen Befehl, nachdem das Erkennungswort erkannt wurde
 def listen_for_following_command():
     """
     Gibt (best_match, original_text) zurück.
@@ -255,6 +264,7 @@ def listen_for_following_command():
         print(f"Fehler beim Erfassen des Befehls: {e}")
     return None, None
 
+# Erkannter Befehl wird ausgeführt. Diashow kurz Pausieren, um Deadlocks zu vermeiden
 def execute_command(command, original_text=""):
     global paused, current_image, current_index, running, favorites_mode, current_speed
     print(f"DEBUG: execute_command aufgerufen mit command='{command}'")
@@ -346,6 +356,7 @@ def execute_command(command, original_text=""):
             running = False
             print("Gerät wird heruntergefahren.")
 
+# Overlay, bei klick auf Button "info" -> Alle Sprachbefehle werden aufgelistet
 def draw_info_overlay(frame):
     overlay = frame.copy()
     rect_x1, rect_y1 = 50, 50
@@ -377,6 +388,7 @@ def draw_info_overlay(frame):
         y_text += 40
     return frame
 
+# Zeichne Menu bei klick auf Bildschrim
 def draw_menu(frame):
     cv2.rectangle(
         frame,
@@ -437,10 +449,12 @@ def draw_menu(frame):
         x1,y1,x2,y2 = button_layout[highlighted_button]
         cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,255), 3)
 
+# Prüft, ob der Klick auf den Display im Bereich eines Buttons liegt. True = liegt im Bereich, False=Ausserhalb des Bereichs
 def point_in_rect(x, y, rect):
     x1, y1, x2, y2 = rect
     return (x1 <= x <= x2) and (y1 <= y <= y2)
 
+# Führt den Befehl des angeklickten Buttons aus
 def handle_button_click(btn_key):
     global menu_highlight_end, highlighted_button, current_image, current_index
     global favorites_mode, info_visible, info_hide_time
@@ -507,6 +521,7 @@ def handle_button_click(btn_key):
     menu_highlight_end = time.time() + BUTTON_HIDE_DELAY
     print("End handle_button_click")
 
+# Funktion wird bei einer Berührung auf das Touch-Display aufgerufen
 def mouse_callback(event, x, y, flags, param):
     global menu_visible, menu_last_interaction, menu_highlight_end, highlighted_button
     global info_visible
@@ -530,6 +545,7 @@ def mouse_callback(event, x, y, flags, param):
             return
 
         clicked_button = None
+        # Prüfen, ob ein Button geklickt wurde
         for key, rect in button_layout.items():
             if point_in_rect(x_corr, y_corr, rect):
                 clicked_button = key
@@ -543,6 +559,7 @@ def mouse_callback(event, x, y, flags, param):
             highlighted_button = None
             menu_highlight_end = 0
 
+# Thread für die Diashow
 def slideshow_thread():
     global running, paused, images, favorites, current_speed
     global current_image, current_index, last_image_update_time, favorites_mode
@@ -597,13 +614,13 @@ def slideshow_thread():
 
                 # Rahmen-Logik
                 if now < command_fail_until:
-                    # Roter Rand
+                    # Roter Rand = Befehl nicht erkannt
                     cv2.rectangle(frame, (0,0), (SCREEN_WIDTH-1, SCREEN_HEIGHT-1), (0,0,255), 10)
                 elif now < command_success_until:
-                    # Grüner Rand
+                    # Grüner Rand = Befehlt erkannt
                     cv2.rectangle(frame, (0,0), (SCREEN_WIDTH-1, SCREEN_HEIGHT-1), (0,255,0), 10)
                 elif now < hotword_feedback_until:
-                    # Blauer Rand
+                    # Blauer Rand = Erkennungswort erkannt -> Jetzt Befehl sprechen
                     cv2.rectangle(frame, (0,0), (SCREEN_WIDTH-1, SCREEN_HEIGHT-1), (255,0,0), 10)
 
                 # Menü ausblenden nach Highlight/Timeout?
@@ -625,14 +642,11 @@ def slideshow_thread():
     finally:
         cv2.destroyAllWindows()
 
+#Thread für die Spracherkennung/Sprachsteuerung
 def voice_control_thread():
-    """
-    Achtung: Hier entfernen wir den grossen 'with lock' um execute_command zu vermeiden,
-    um Deadlock zu verhindern. Wir verwenden lock nur kurz fuer 'running' & Zeitstempel.
-    """
     global running, command_success_until, command_fail_until
     while True:
-        # Nur kurz lock fuer 'running' checken
+        # Nur kurz lock fuer 'running' checken, um deadlocks zu vermeiden
         with lock:
             if not running:
                 break
