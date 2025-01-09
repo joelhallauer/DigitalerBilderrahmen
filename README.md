@@ -48,12 +48,12 @@ mkdir -p /home/pi/DigiBilderrahmen/script/images
 
 ### Skript ausführen
 ```bash
-python3 digital_frame_code.py
+python3 bilderrahmen.py
 ```
 
 ## Sprachbefehle
 Die folgenden Sprachbefehle werden vom System unterstützt:
--"stopp": Stoppt die Diashow.
+- "stopp": Stoppt die Diashow.
 - "schneller": Erhöht die Abspielgeschwindigkeit.
 - "langsamer": Verringert die Abspielgeschwindigkeit.
 - "weiter": Setzt die Diashow fort.
